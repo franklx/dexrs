@@ -12,12 +12,17 @@ pub mod error;
 impl DesktopEntry<'_> {
     /// Launch the given desktop entry action.
     pub fn launch_action(&self, action: &str, uris: &[&str]) -> Result<(), ExecError> {
-        let has_action = self.actions().map(|actions| actions.split(';').any(|act| act == action)).unwrap_or(false);
-
+        let has_action = self
+            .actions()
+            .map_or(false,
+                |actions|
+                actions
+                    .split(';')
+                    .any(|act| act == action)
+            );
         if !has_action {
             return Err(ExecError::ActionNotFound { action: action.to_string(), desktop_entry: self.path });
         }
-
         self.shell_launch(uris, Some(action.to_string()))
     }
 
@@ -27,27 +32,18 @@ impl DesktopEntry<'_> {
     }
 
     fn shell_launch(&self, uris: &[&str], action: Option<String>) -> Result<(), ExecError> {
-        let exec = match action {
-            None => {
-                let exec = self.exec();
-                if exec.is_none() {
-                    return Err(ExecError::MissingExecKey(self.path));
-                }
-                exec.unwrap()
-            }
-            Some(action) => {
-                let exec = self.action_exec(&action);
-                if exec.is_none() {
-                    return Err(ExecError::ActionExecKeyNotFound { action, desktop_entry: self.path });
-                }
-                exec.unwrap()
-            }
-        };
+        let exec = if let Some(action) = action {
+            self.action_exec(&action)
+                .ok_or(ExecError::ActionExecKeyNotFound { action, desktop_entry: self.path })
+        } else {
+            self.exec()
+                .ok_or(ExecError::MissingExecKey(self.path))
+        }?;
 
-        let exec_args = exec
-            .split_ascii_whitespace()
-            .map(ArgOrFieldCode::try_from)
-            .collect::<Result<Vec<ArgOrFieldCode>, _>>()?;
+        let exec_args =
+            exec.split_ascii_whitespace()
+                .map(ArgOrFieldCode::try_from)
+                .collect::<Result<Vec<ArgOrFieldCode>, _>>()?;
 
         let mut exec_args = self.get_args(uris, exec_args);
 
@@ -55,26 +51,22 @@ impl DesktopEntry<'_> {
             return Err(ExecError::EmptyExecString);
         }
 
-        let (exec, args) =
-            if !self.terminal() {
-                (exec_args[0].to_owned(), &exec_args[1..])
-            }
-            else {
-                let (terminal, separator) = detect_terminal();
-                exec_args.insert(0, separator.to_owned());
-                (terminal.to_string_lossy().to_string(), &exec_args[..])
-            };
+        let exec; // trick to keep terminal.to_string_lossy() in scope
+        let (exec, args) = if self.terminal() {
+            let (terminal, separator) = detect_terminal();
+            exec_args.insert(0, separator.to_owned());
+            exec = terminal.to_string_lossy().to_string();
+            (&exec, &exec_args[..])
+        } else {
+            (&exec_args[0], &exec_args[1..])
+        };
 
         let mut cmd = Command::new(exec);
 
         if let Some(ref dir) = self.path() {
             cmd.current_dir(dir.as_ref());
         }
-        cmd
-            .args(args)
-            .spawn()
-            .map(|_| ())
-            .map_err(ExecError::IoError)
+        cmd.args(args).spawn().map(|_| ()).map_err(ExecError::IoError)
     }
 
     // Replace field code with their values and ignore deprecated and unknown field codes
