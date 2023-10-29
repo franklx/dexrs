@@ -40,7 +40,4 @@ pub enum ExecError<'a> {
         action: String,
         desktop_entry: &'a Path,
     },
-
-    #[error("Failed to launch aplication via dbus: {0}")]
-    DBusError(#[from] zbus::Error),
 }

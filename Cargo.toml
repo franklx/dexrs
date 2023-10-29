@@ -1,8 +1,8 @@
 [package]
-name = "freedesktop-desktop-entry"
+name = "dexrs"
 version = "0.5.0"
 authors = ["Michael Aaron Murphy <mmstick@pm.me>"]
-edition = "2018"
+edition = "2021"
 homepage = "https://github.com/pop-os/freedesktop-desktop-entry"
 description = "Freedesktop Desktop Entry Specification"
 license = "MPL-2.0"
@@ -12,23 +12,11 @@ keywords = [ "freedesktop", "desktop", "entry" ]
 maintenance = { status = "passively-maintained" }
 
 [dependencies]
-dirs = "3"
 gettext-rs = { version = "0.7", features = ["gettext-system"]}
 memchr = "2"
 thiserror = "1"
-xdg = "2.4.0"
-udev = "0.6.3"
-zbus = "2.2.0"
-fork = "0.1.19"
+xdg = "2.4"
+shellexpand = "3"
 
 [dev-dependencies]
-speculoos = "0.9.0"
-
-[[example]]
-name = "de-launch"
-path = "examples/de_launch.rs"
-
-
-[[example]]
-name = "de-list"
-path = "examples/de_list.rs"
+speculoos = "0.11"

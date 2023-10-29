@@ -1,4 +1,4 @@
-use freedesktop_desktop_entry::DesktopEntry;
+use dexrs::DesktopEntry;
 use std::path::PathBuf;
 use std::{env, fs};
 

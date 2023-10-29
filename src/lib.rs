@@ -38,22 +38,13 @@ pub struct DesktopEntry<'a> {
 
 impl<'a> DesktopEntry<'a> {
     pub fn action_entry(&'a self, action: &str, key: &str) -> Option<&'a str> {
-        let group = self
-            .groups
-            .get(["Desktop Action ", action].concat().as_str());
+        let group = self.groups.get(["Desktop Action ", action].concat().as_str());
 
         Self::entry(group, key)
     }
 
-    pub fn action_entry_localized(
-        &'a self,
-        action: &str,
-        key: &str,
-        locale: Option<&str>,
-    ) -> Option<Cow<'a, str>> {
-        let group = self
-            .groups
-            .get(["Desktop Action ", action].concat().as_str());
+    pub fn action_entry_localized(&'a self, action: &str, key: &str, locale: Option<&str>) -> Option<Cow<'a, str>> {
+        let group = self.groups.get(["Desktop Action ", action].concat().as_str());
 
         Self::localized_entry(self.ubuntu_gettext_domain, group, key, locale)
     }
@@ -79,11 +70,7 @@ impl<'a> DesktopEntry<'a> {
     }
 
     pub fn decode(path: &'a Path, input: &'a str) -> Result<DesktopEntry<'a>, DecodeError> {
-        let appid = path
-            .file_stem()
-            .ok_or(DecodeError::AppID)?
-            .to_str()
-            .ok_or(DecodeError::AppID)?;
+        let appid = path.file_stem().ok_or(DecodeError::AppID)?.to_str().ok_or(DecodeError::AppID)?;
 
         let mut groups = Groups::new();
 
@@ -113,7 +100,7 @@ impl<'a> DesktopEntry<'a> {
                         let locale = &key[start + 1..key.len() - 1];
                         groups
                             .entry(active_group)
-                            .or_insert_with(Default::default)
+                            .or_default()
                             .entry(key_name)
                             .or_insert_with(|| ("", LocaleMap::new()))
                             .1
@@ -128,38 +115,19 @@ impl<'a> DesktopEntry<'a> {
                     continue;
                 }
 
-                groups
-                    .entry(active_group)
-                    .or_insert_with(Default::default)
-                    .entry(key)
-                    .or_insert_with(|| ("", BTreeMap::new()))
-                    .0 = value;
+                groups.entry(active_group).or_default().entry(key).or_insert_with(|| ("", BTreeMap::new())).0 = value;
             }
         }
 
-        Ok(DesktopEntry {
-            appid,
-            groups,
-            path,
-            ubuntu_gettext_domain,
-        })
+        Ok(DesktopEntry { appid, groups, path, ubuntu_gettext_domain })
     }
 
     pub fn desktop_entry(&'a self, key: &str) -> Option<&'a str> {
         Self::entry(self.groups.get("Desktop Entry"), key)
     }
 
-    pub fn desktop_entry_localized(
-        &'a self,
-        key: &str,
-        locale: Option<&str>,
-    ) -> Option<Cow<'a, str>> {
-        Self::localized_entry(
-            self.ubuntu_gettext_domain,
-            self.groups.get("Desktop Entry"),
-            key,
-            locale,
-        )
+    pub fn desktop_entry_localized(&'a self, key: &str, locale: Option<&str>) -> Option<Cow<'a, str>> {
+        Self::localized_entry(self.ubuntu_gettext_domain, self.groups.get("Desktop Entry"), key, locale)
     }
 
     pub fn exec(&'a self) -> Option<&'a str> {
@@ -202,6 +170,10 @@ impl<'a> DesktopEntry<'a> {
         self.desktop_entry("OnlyShowIn")
     }
 
+    pub fn path(&'a self) -> Option<Cow<'a, str>> {
+        self.desktop_entry("Path").map(shellexpand::tilde)
+    }
+
     pub fn prefers_non_default_gpu(&'a self) -> bool {
         self.desktop_entry_bool("PrefersNonDefaultGPU")
     }
@@ -231,10 +203,7 @@ impl<'a> DesktopEntry<'a> {
     }
 
     fn localized_entry(
-        ubuntu_gettext_domain: Option<&'a str>,
-        group: Option<&'a KeyMap<'a>>,
-        key: &str,
-        locale: Option<&str>,
+        ubuntu_gettext_domain: Option<&'a str>, group: Option<&'a KeyMap<'a>>, key: &str, locale: Option<&str>,
     ) -> Option<Cow<'a, str>> {
         group.and_then(|group| group.get(key)).and_then(|key| {
             locale
@@ -271,54 +240,6 @@ impl<'a> Display for DesktopEntry<'a> {
         }
 
         Ok(())
-    }
-}
-
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum PathSource {
-    Local,
-    LocalDesktop,
-    LocalFlatpak,
-    LocalNix,
-    Nix,
-    System,
-    SystemLocal,
-    SystemFlatpak,
-    SystemSnap,
-    Other(String),
-}
-
-impl PathSource {
-    /// Attempts to determine the PathSource for a given Path.
-    /// Note that this is a best-effort guesting function, and its results should be treated as
-    /// such (e.g.: non-canonical).
-    pub fn guess_from(path: &Path) -> PathSource {
-        let base_dirs = BaseDirectories::new().unwrap();
-        let data_home = base_dirs.get_data_home();
-
-        if path.starts_with("/usr/share") {
-            PathSource::System
-        } else if path.starts_with("/usr/local/share") {
-            PathSource::SystemLocal
-        } else if path.starts_with("/var/lib/flatpak") {
-            PathSource::SystemFlatpak
-        } else if path.starts_with("/var/lib/snapd") {
-            PathSource::SystemSnap
-        } else if path.starts_with("/nix/var/nix/profiles/default")
-            || path.starts_with("/nix/store")
-        {
-            PathSource::Nix
-        } else if path.to_string_lossy().contains("/flatpak/") {
-            PathSource::LocalFlatpak
-        } else if path.starts_with(&data_home.as_path()) {
-            PathSource::Local
-        } else if path.starts_with("/nix/var/nix/profiles/per-user")
-            || path.to_string_lossy().contains(".nix")
-        {
-            PathSource::LocalNix
-        } else {
-            PathSource::Other(String::from("unknown"))
-        }
     }
 }
 
